@@ -1,0 +1,64 @@
+---
+title: "Testing for Cointegration"
+output:
+  bookdown::html_document2:
+        number_sections: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data Access
+
+This case study uses prices of soybean oil and diesel fuel from [Nasdaq](https://data.nasdaq.com/). You will need to create an account to download the data in R (or Python) using the [`{Quandl}`](https://data.nasdaq.com/tools/r) package. After you create your account, you can simply search for the price series of interest (e.g., Soybean Oil Futures or U.S. No. 2 Diesel Retail Prices) and click the R (or Python) link on the right hand side of the window below Libraries. A pop up will appear containing the code for you to copy and paste into your software, as shown in Figure \@ref(fig:nasdaq).
+
+```{r nasdaq, echo=FALSE, fig.cap = "Nasdaq interface", fig.align='center', out.width = "80%"}
+knitr::include_graphics("figs/nasdaq.png")
+```
+
+
+## Loading the data into R
+
+We first load the packages we will use to analyze the data. 
+
+```{r}
+pacman::p_load(tidyverse, lubridate, stringr, Quandl, urca, xts, forecast)
+```
+
+Then we will load the data using the R codes we have copied from Nasdaq. 
+
+```{r, eval = F}
+soybeans <- Quandl("CHRIS/ICE_IBO2")
+diesel <- Quandl("EIA/PET_EMD_EPD2D_PTE_NUS_DPG_W")
+```
+
+A quick look at the data shows that the soybean oil price is reported for each working day, excluding holidays from May 2012 to June 2018, and the diesel price is reported every Monday. There are different techniques proposed in the literature to work with multiple time series data that are sampled at different frequencies. To keep things simple, we will use `Quandl`'s weekly function to aggregate the daily data to weekly average prices for the soybeans series. Because the soybean weekly dates will land on Sundays, we will add one day so that the dates for the two price series will be on Mondays. 
+
+```{r}
+# get soybeans data in weekly format
+soybeans <- Quandl("CHRIS/ICE_IBO2", collapse = "weekly")
+
+# add 1 day to date, so dates will be on Monday instead of Sunday
+soybeans$Date <- soybeans$Date + 1 
+
+# get diesel data for the similar time period
+diesel <- Quandl("EIA/PET_EMD_EPD2D_PTE_NUS_DPG_W", start_date = "2012-05-13", end_date = "2018-06-17")
+```
+
+We have to tell R that we are working with time series data. There are [multiple packages](https://faculty.washington.edu/ezivot/econ424/Working%20with%20Time%20Series%20Data%20in%20R.pdf) to handle time series data in R. In our labs, we will use the `{xts}` package. With this package, we will use the `xts` function to convert the dataframe to an xts object. The syntax is `xts(data, order.by = date_index)`.  
+
+```{r}
+ts_soy <- xts(soybeans$Settle, order.by = soybeans$Date)
+ts_diesel <- xts(diesel$Value, order.by = diesel$Date)
+```
+
+Now that these two xts objects have the same dates, we can use the `xts.merge()` function. 
+
+```{r}
+soydiesel <- merge.xts(ts_soy, ts_diesel)
+colnames(soydiesel) <- c("p_soy", "p_diesel")
+head(soydiesel)
+```
+
+# Cointegration
