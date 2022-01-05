@@ -61,4 +61,49 @@ colnames(soydiesel) <- c("p_soy", "p_diesel")
 head(soydiesel)
 ```
 
-# Cointegration
+# Working with time series data
+
+When working with time series data, the first step is to test for stationarity. If we run OLS with non-stationariy data, we get spurious results. An exception to this rule is when two data series are cointegrated. Two non-stationarity series are cointegrated if there exists a linear combination of the two series that is stationarity. This linear combination is called the cointegrating vector. 
+
+This case study tests the cointegration for soybean oil and diesel because the literature suggests there is a long run price linkage between these two variables (read [here](https://www.ideals.illinois.edu/bitstream/handle/2142/45274/Hala_Zahran.pdf?sequence=1)
+
+## Testing for Stationarity
+
+We use the `ur.df()` function of the `{urca}` package to conduct the Dickey-Fuller Unit Root test. 
+```{r}
+df_soy <- ur.df(soydiesel$p_soy, type = c("trend"), lags = 0)
+
+df_diesel <- ur.df(soydiesel$p_diesel, type = c("trend"), lags = 0)
+
+summary(df_soy)
+summary(df_diesel)
+```
+
+In the Dickey-Fuller test of soybean oil prices, we observe that the t-statistic is `r round(summary(df_soy)@teststat[1], 2)`. We compare this number to the tau3 critical values of [`r summary(df_soy)@cval[1,]`] at the 1%, 5%, and 10% level, respectively. Because the t-statistic is larger than all of the critical values, we fail to reject the null hypothesis of a unit root at any significance level. 
+
+In the Dickey-Fuller test of diesel prices, the t-statistic is `r round(summary(df_diesel)@teststat[1], 2)`. We compare this number to the tau3 critical values of [`r summary(df_diesel)@cval[1,]`] at the 1%, 5%, and 10% level, respectively. Because the t-statistic is larger than all of the critical values, we fail to reject the null hypothesis of a unit root at any significance level. 
+
+Based from the Dickey-Fuller tests, we conclude that both soybean oil and diesel prices are non-stationary. 
+
+*Here's a useful link that explains how to interpret the [results](https://stats.stackexchange.com/questions/24072/interpreting-rs-ur-df-dickey-fuller-unit-root-test-results).*
+
+## Testing for I(1)
+
+We now test whether the first difference of each series is stationary. We can only proceed with a test of cointegration if the non-stationary data series are both integrated of the same order. 
+
+We use the `diff.xts()` function to take the first difference. We add in `na.pad = F` to drop the first row, which will be `NA`. The `ur.df()` function only works if the data does not include any NAs. 
+
+```{r}
+df_soy_diff <- ur.df(diff.xts(soydiesel$p_soy, na.pad = F), type = c("trend"), lags = 0)
+
+df_diesel_diff <- ur.df(diff.xts(soydiesel$p_diesel, na.pad = F), type = c("trend"), lags = 0)
+
+summary(df_soy_diff)
+summary(df_diesel_diff)
+```
+
+The Dickey-Fuller test on the first difference of soybean oil and diesel prices show that the test statistics are `round(summary(df_soy_diff)@teststat[1], 2)` and `round(summary(df_diesel_diff)@teststat[1], 2)`, respectively. Comparing the test statistics to the critical values of [`r summary(df_soy_diff)@cval[1,]`] at the 1%, 5%, and 10%, respectively. We reject the null hypothesis of a unit root for both price series. We therefore conclude that both series are integrated of order 1. We can now proceed with the test for cointegration.
+
+
+
+
