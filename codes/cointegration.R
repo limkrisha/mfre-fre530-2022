@@ -9,7 +9,7 @@ pacman::p_load(tidyverse, lubridate, stringr, Quandl, urca, xts, forecast)
 soybeans <- Quandl("CHRIS/ICE_IBO2", api_key="4bwZJ_U8Nz7sPPrUH2Av", collapse = "weekly")
 
 #1994 weekly 
-diesel <- Quandl("EIA/PET_EMD_EPD2D_PTE_NUS_DPG_W", start_date = "2012-05-13", end_date = "2018-06-17")
+diesel <- Quandl("EIA/PET_EMD_EPD2D_PTE_NUS_DPG_W", start_date = "2012-05-13", end_date = "2018-06-10")
 
 # xts can do everything {zoo} does https://rc2e.com/timeseriesanalysis
 soybeans$testdate <- soybeans$Date + 1 

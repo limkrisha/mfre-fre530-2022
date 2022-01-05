@@ -102,8 +102,77 @@ summary(df_soy_diff)
 summary(df_diesel_diff)
 ```
 
-The Dickey-Fuller test on the first difference of soybean oil and diesel prices show that the test statistics are `round(summary(df_soy_diff)@teststat[1], 2)` and `round(summary(df_diesel_diff)@teststat[1], 2)`, respectively. Comparing the test statistics to the critical values of [`r summary(df_soy_diff)@cval[1,]`] at the 1%, 5%, and 10%, respectively. We reject the null hypothesis of a unit root for both price series. We therefore conclude that both series are integrated of order 1. We can now proceed with the test for cointegration.
+The Dickey-Fuller test on the first difference of soybean oil and diesel prices show that the test statistics are `r round(summary(df_soy_diff)@teststat[1], 2)` and `r round(summary(df_diesel_diff)@teststat[1], 2)`, respectively. Comparing the test statistics to the critical values of [`r summary(df_soy_diff)@cval[1,]`] at the 1%, 5%, and 10%, respectively. We reject the null hypothesis of a unit root for both price series. We therefore conclude that both series are integrated of order 1. We can now proceed with the test for cointegration.
 
+## Engle-Granger Test
 
+The first step involves estimating the cointegrating vector $\alpha$ and $\beta$ in the equation $p^{soy} = \alpha + \beta p^{diesel} + \epsilon$. 
 
+```{r}
+reg_nosubsidy <- lm(p_soy ~ p_diesel, data = soydiesel)
+summary(reg_nosubsidy)
+```
+
+[Theory](https://www.ideals.illinois.edu/bitstream/handle/2142/45274/Hala_Zahran.pdf?sequence=1) suggests that $\beta = 8.702$. Our regression results show that our estimated coefficient is `r round(summary(reg_nosubsidy)$coefficients[2,1], 2)`, which is very close to the technical pricing relationship. 
+
+There was a long-running \$1/gallon subsidy on biodiesel production that ended in the U.S. in early 2018. Theory suggests that the end of this subsidy should reduce the price of soybean oil by an amount which is less than \$1/gallon of biodiesel, as the price reduction will depend on supply and demand elasticities. 
+
+We re-estimate our regression but include a subsidy dummy variable that equals 1 from the first week of January 2018 onwards. To refer to the date variable of our time series, we use the `index()` function. 
+
+```{r}
+# create end of subsidy variable
+soydiesel$subsidy <- ifelse(index(soydiesel) >= "2018-01-01", 1, 0)
+
+# re-estimate regression
+reg_subsidy <- lm(p_soy ~ p_diesel + subsidy, data = soydiesel)
+summary(reg_subsidy)
+```
+The results show that the estimated coefficient on the diesel price $\beta$ is stable, highly significant, and consistent with the theoretical estimate of 8.702. The subsidy dummy variable is also strongly significant. One caveat is that the number of weeks with the subsidy is quite short due to the data we have, so including this variable may not be a good identification strategy. 
+
+The second step of the Engle-Granger test is to collect the residuals from the previous regression and run a Dickey-Fuller test for a unit root. If we reject the null hypothesis of a unit root, we can conclude that soybean oil and diesel prices are cointegrated and the $\beta$ coefficient we estimated earlier has a meaningful interpretation. We can access the residuals using `residuals()` function and store them as new objects.
+
+```{r}
+# collect residuals of regression with no subsidy
+resid_nosubsidy <- residuals(reg_nosubsidy)
+
+# collect residuals of regression with subsidy
+resid_subsidy <- residuals(reg_subsidy)
+```
+
+Next, we run a Dickey Fuller test on the residuals. As mentioned in the lecture, we should not use a time trend, and we should restrict the intercept to zero because residuals will have a zero mean, so we will use `type = c("none")` instead of `type = c("trend")`. 
+
+```{r}
+df_resid_nosubsidy <- ur.df(resid_nosubsidy, type = c("none"), lags = 0)
+df_resid_subsidy <- ur.df(resid_subsidy, type = c("none"), lags = 0)
+
+summary(df_resid_nosubsidy)
+summary(df_resid_subsidy)
+```
+
+When we run the Dickey-Fuller test on the residuals of the regression without a subsidy, we get a test statistic of `round(summary(df_resid_nosubsidy)@teststat[1], 2)`. Comparing this number to the tau3 critical values of [`summary(df_resid_nosubsidy)@cval[1,]`] at the 1%, 5%, 10% significant levels, respectively, we fail to reject the null hypothesis of a unit root at the 95% level. This result means that we have no evidence of cointegration. 
+
+When we run the Dickey-Fuller test on the residuals of the regression with a subsidy, we get a test statistic of `round(summary(df_resid_subsidy)@teststat[1], 2)`. Comparing this number to the tau3 critical values of [`summary(df_resid_subsidy)@cval[1,]`] at the 1%, 5%, 10% significant levels, respectively, we reject the null hypothesis of a unit root at the 95% level. This result means that we have evidence that the two prices are cointegrated, and the cointegrating vector in the first step is a good estimate of the long run relationship between the two prices. 
+
+We can also do an Augmented Dickey-Fuller test on the residuals. We can use the autocorrelation and partial autocorrelation plots to guide our decision on the number of lags to specify in the Augmented Dickey-Fuller test. We use the `Acf()` and `Pacf()` functions in the [`{forecast}`](https://cran.r-project.org/web/packages/forecast/forecast.pdf) package. 
+
+```{r}
+Acf(resid_nosubsidy)
+Pacf(resid_subsidy)
+
+Acf(resid_subsidy)
+Pacf(resid_subsidy)
+```
+
+The autocorrelation plots for the residuals of the no subsidy and with subsidy regressions indicate that there is indeed autocorrelation to account for. The black vertical lines all spike above the blue significance lines. The partial autocorrelation plots for residuals of the no subsidy and with subsidy regressions show taht we should definitely include at least one lag in our model, and possibly up to 8 lags. We will use our judgment to include just one lag in our model because we believe it is unlikely that diesel prices 8 days ago are useful in explaining current soybean oil prices. Also, we lose degrees of freedom and power as we include more regressors in the model. 
+
+We now proceed with an ADF test on the residuals. We do not have a time trend or an intercept, but we now include one lag in the model. 
+
+```{r}
+adf_resid_nosubsidy <- ur.df(resid_nosubsidy, type = c("none"), lags = 1, selectlags = c("BIC"))
+
+adf_resid_subsidy <- ur.df(resid_subsidy, type = c("none"), lags = 1, selectlags = c("BIC"))
+
+summary(adf_resid_nosubsidy)
+summary(adf_resid_subsidy)
+```
 
