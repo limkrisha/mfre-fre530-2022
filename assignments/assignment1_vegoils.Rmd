@@ -68,13 +68,13 @@ class(vegoils)
 
 # Testing for Stationarity (8 points)
 
-  a) Perform a Dickey-Fuller (DF) test (i.e., no constant and no lags) to determine whether each price series is stationary or not. Be clear and concise in explaining how you concluded whether the price series is stationary or not. *Hint: You will do 3 separate DF tests.* (1 point)
-  b) In recent years, an Augmented Dickey Fuller (ADF) test has been developed to account for potential autocorrelation in the residuals. (5 points) 
-    - Without adding any drift or trend terms, add lags to your stationary test for soybeans. Briefly explain how you determined the number of lags to include in your model. Discuss the results in 2-3 sentences.
-    - Add an intercept term and lags to the ADF test. Discuss the results in 2-3 sentences. 
-    - Add an intercept, trend, and lags to the ADF test. Discuss the results in 2-3 sentences.
-    - Based on the three ADF tests you have performed, which specification would you suggest to use? Why?
-  c) Perform an ADF test whether the first difference of each price series is stationary or not. (1 point)
+  a) Perform a Dickey-Fuller (DF) test (i.e., no constant, no trend, no lags) to determine whether each price series is stationary or not. Be clear and concise in explaining how you concluded whether the price series is stationary or not. *Hint: You will do 3 separate DF tests.* (2 point)
+  b) In recent years, an Augmented Dickey Fuller (ADF) test has been developed to account for potential autocorrelation in the residuals. 
+  
+  - Without adding any drift or trend terms, add lags to your stationary test for soybeans. In 2-3 sentences, explain the results and how you determined the number of lags to include in your model. (1 point)
+  - Following the Stationarity Testing Flow Chart posted on Canvas, proceed with Stage 1 testing by changing the specification to `type = c("drift")`. In 2-3 sentences, discuss the test results and which specification is most appropriate for soybean oil prices. (2 points)
+  - In 2-3 sentences, explain why it is important to use the correct ADF specification in testing for stationarity (1 point)
+  c) Perform an ADF test whether the first difference of each price series is stationary or not. Do not add a trend or drift term, but do control for autocorrelation by using 4 lags, 1 lags, and 1 lags for palm, soybean, and rapeseed oils, respectively. (1 point)
   d) In 1-2 sentences, explain why we took the first difference of each price series and conducted an ADF test on the first difference? (1 point)
 
 ```{r, echo = F, message = F, warning = F, results = 'hide'}
@@ -93,11 +93,8 @@ summary(adf_soy)
 adf_soy_drift <- ur.df(vegoils$lnsoy, type = c("drift"), lags = 2, selectlags = c("AIC"))
 summary(adf_soy_drift)
 
-adf_soy_trend <- ur.df(vegoils$lnsoy, type = c("trend"), lags = 2, selectlags = c("AIC"))
-summary(adf_soy_trend)
-
 # 4c
-adf_palm_diff <- ur.df(diff.xts(vegoils$lnpalm, na.pad = F), type = c("none"), lags = 1)
+adf_palm_diff <- ur.df(diff.xts(vegoils$lnpalm, na.pad = F), type = c("none"), lags = 4)
 summary(adf_palm_diff)
 
 adf_soy_diff <- ur.df(diff.xts(vegoils$lnsoy, na.pad = F), type = c("none"), lags = 1)
@@ -112,25 +109,24 @@ summary(adf_rapeseed_diff)
 
   a) DF tests:
   
-  - $DF_{palm}$: t-statistic is `r round(df_palm@teststat, 4)` and the critical values are `r df_palm@cval`. We fail to reject the null hypothesis of a unit root. Palm price is not stationary. 
-  - $DF_{soy}$: t-statistic is `r round(df_soy@teststat, 4)` and the critical values are `r df_soy@cval`. We fail to reject the null hypothesis of a unit root. Soybean oil price is not stationary. 
-  - $DF_{rapeseed}$: t-statistic is `r round(df_rapeseed@teststat, 4)` and the critical values are `r df_rapeseed@cval`. We fail to reject the null hypothesis of a unit root. Rapeseed price is not stationary. 
+  - $DF_{palm}$: t-statistic is `r round(df_palm@teststat, 3)` and the critical values are `r df_palm@cval`. We fail to reject the null hypothesis of a unit root. Palm price is not stationary. 
+  - $DF_{soy}$: t-statistic is `r round(df_soy@teststat, 3)` and the critical values are `r df_soy@cval`. We fail to reject the null hypothesis of a unit root. Soybean oil price is not stationary. 
+  - $DF_{rapeseed}$: t-statistic is `r round(df_rapeseed@teststat, 3)` and the critical values are `r df_rapeseed@cval`. We fail to reject the null hypothesis of a unit root. Rapeseed price is not stationary. 
     
     
   b) ADF tests: 
   
-  - Visual inspection of the partial autocorrelation plot suggests we include two lags. Only 1 lag is included in the final specification if we select lags based on the lowest AIC or BIC. With the specification `lags = 2, selectlags = c("AIC")`, the t-statistic is `r round(adf_soy@teststat, 4)` and the critical values are `r adf_soy@cval`. We fail to reject the null hypothesis. Soy price is not stationary, even after adding controls for autocorrelation. 
-  - By specifying `type = c("drift")` we add a intercept to the model. The $\phi_1$ t-statistic is `r round(adf_soy_drift@teststat[2], 4)` and the critical values are `r adf_soy_drift@cval[2,]`. We reject the joint null hypothesis, so there is a unit root and we can exclude the drift term. The $\tau_2$ t-statistic is `r round(adf_soy_drift@teststat[1], 4)` and the critical values are `r adf_soy_drift@cval[1,]`, so there is a unit root.
-  - By specifying `type = c("trend")` we add a drift and an intercept to the model. The $\phi_2$ t-statistic is `r round(adf_soy_trend@teststat[2], 4)` and the critical values are `r adf_soy_trend@cval[2,]`. We reject the joint null hypothesis, so there is a unit root and we can exclude the drift term and trend terms. The $\phi_3$ t-statistic is `r round(adf_soy_trend@teststat[3], 4)` and the critical values are `r adf_soy_trend@cval[3,]`; it shows that the data is stationary without a drift. The $\tau_3$ t-statistic is `r round(adf_soy_trend@teststat[1], 4)` and the critical value are `r adf_soy_trend@cval[1,]` shows that there is a unit root. 
-  - Based on these different ADF specifications, we should include a lag term to control for autocorrelation. Trend and drift terms are not necessary in the ADF test for soybean oil. 
-    
+  - Visual inspection of the partial autocorrelation plot suggests we include two lags. Only 1 lag is included in the final specification if we select lags based on the lowest AIC. With the specification `lags = 2, selectlags = c("AIC")`, the t-statistic is `r round(adf_soy@teststat, 4)` and the critical values are `r adf_soy@cval`. We fail to reject the null hypothesis. Soy price is not stationary, even after adding controls for autocorrelation. 
+  - By specifying `type = c("drift")` we add a intercept to the model. The $\tau_2$ t-statistic is `r round(adf_soy_drift@teststat[1], 4)` and the critical values are `r adf_soy_drift@cval[1,]`, so there is a unit root. The $\phi_1$ t-statistic is `r round(adf_soy_drift@teststat[2], 4)` and the critical values are `r adf_soy_drift@cval[2,]`. We fail to reject the joint null hypothesis, implying that there is a unit root present and there is no drift term. Based on the flow chart, we do not need to proceed with Stage 2 testing. The most appropriate specification for soybean oil data is to add lags to the model to control for autocorrelation, but drift and trend terms are not necessary. 
+  - It is important to use the correct specification for the ADF test because we may end up incorrectly rejecting the unit root hypothesis and conclude the data is stationary when it is not. The converse is also true. If one applies linear regression models to non-stationary data because of an incorrectly specified ADF test, one will get spurious results.
+  
   c) In the ADF test of the first difference of palm oil, soybean oil, and rapeseed oil, the test statistics are `r round(adf_soy_diff@teststat,4)`, `r round(adf_soy_diff@teststat,4)`, `r round(adf_rapeseed_diff@teststat,4)`, respectively. The critical values are `r adf_soy_diff@cval`. We reject the null hypothesis of a unit root for each of the price series. We therefore conclude that each price series is integrated of the order 1. 
   
   d) As noted in the [readings](https://otexts.com/fpp2/stationarity.html), one method to make a non-stationary time series stationary is to take the first difference, as it helps stabilize the time series by reducing trend and seasonality. We conducted an ADF test on the first difference of each price series because we need the price series to be integrated of the same order before we can proceed with the test for cointegration. 
 
 # Testing for Cointegration (3.5 points)
 
-To test whether palm oil, soybean oil, and rapeseed oil are cointegrated, we should ideally use the Johansen test for cointegration. However, because the Johansen procedure is relatively complicated, we will instead test all three price pairs for cointegration with the Engle-Granger procedure. If all three pairs are cointegrated, we will assume that the three prices are jointly cointegrated. 
+To test whether palm oil, soybean oil, and rapeseed oil are cointegrated, we should ideally use the Johansen test for cointegration. However, because the Johansen procedure is relatively complicated, we will instead test all three price pairs for cointegration with the Engle-Granger procedure. If all three pairs are cointegrated, we will assume that the three prices are jointly cointegrated. Note that your price series should all be integrated of the same order before testing for cointegration. 
 
 - Use the 2-step Engle Granger test to determine if palm-soybean, palm-rapeseed, soybean-rapeseed are cointegrated or not. Briefly discuss your results (2.5 points) 
 - In a few sentences, explain why certain countries are interested in determining whether there exists a cointegrating relationship among vegetable oils, and why? (1 point)
@@ -167,6 +163,8 @@ summary(adf_soy_rapeseed)
     
   - Some countries such as Indonesia and Malaysia are big producers of palm oil. For example, 4.5% of Indonesia's GDP comes from palm oil ([UNDP](https://www.greencommodities.org/content/gcp/en/home/resources/at-a-glance-country-guides/indonesia-at-a-glance.html#:~:text=Indonesia%20is%20the%20world's%20largest,employment%20to%203%20million%20people.)). If there is a shock to palm oil prices, Indonesia's welfare may be affected, so it it is important from a public policy perspective to investigate if the price of palm oil continues to be impacted by other vegetable oils. For example, if the Indonesian government observes more volatile soybean oil prices, they may start thinking about policies to help producers of palm oil. 
   
+\newpage
+
 # Code and Output  
   
 ## Data Cleaning
