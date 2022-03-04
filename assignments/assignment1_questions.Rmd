@@ -2,7 +2,7 @@
 title: "Stationarity and Cointegration of Vegetable Oils"
 subtitle: |
     | FRE530 Assignment 1 (12.5 points)
-    | Due in Canvas *before* midnight (11:59pm) on xx
+    | Due in Canvas *before* midnight (11:59pm) on March 20, 2022
 output:
   bookdown::pdf_document2:
     fig_caption: yes
