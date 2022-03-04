@@ -20,7 +20,7 @@ pacman::p_load(here, readxl, dplyr, janitor, xts, lubridate, urca, forecast)
 
 This assignment has three main objectives: (1) reinforce the time series topics covered in class, (2) build your intuition about time series in economics within the FRE sector, and (3) build your R toolkit. 
 
-In the labs, we have been exploring the linkage between diesel prices and soybean oil. In this assignment, you will explore the linkage between 3 vegetable oils - palm oil, soybean oil, and rapeseed oil. You will submit the rendered PDF file that includes your codes, output, and answers. 
+In the labs, we have been exploring the linkage between diesel prices and soybean oil. In this assignment, you will explore the linkage between 3 vegetable oils - palm oil, soybean oil, and rapeseed oil. You will submit the rendered PDF or html file that includes your codes, output, and answers. 
 
 # Data Download
 
@@ -28,12 +28,13 @@ Download the World Bank Commodity Markets "Pink Sheet" Data (Monthly Prices, XLS
 
 # Data Cleaning (1 point)
 
+  - You may find the following packages useful to conduct the cleaning and analysis: `pacman::p_load(here, readxl, dplyr, janitor, xts, lubridate, urca, forecast)`. 
   - Using `read_excel()`, load the Commodity Price Data and call this object `cmo`. *Hint: You can add `skip = 4, na = ".."` to skip the first four lines and ask R to read ".." as missing. You can also use the `clean_names()` function right away to fix the variable names.*
     - If you used `clean_names()`, rename `x1` to `date`
-    - Use the `select()` function to select the following columns only: `date, palm_oil, soybean_oil, rapeseed_oil`.
+    - Use the `dplyr::select()` function to select the following columns only: `date, palm_oil, soybean_oil, rapeseed_oil`.
     - Use `filter()` to keep only the non-missing data for `date` and `rapeseed_oil`
     - You will notice that the date is stored as YYYYM01 format. R needs "a day", as in 1 for January 1, for a year-month date to be recognize as a date. Use `mutate(date = as.Date(paste0(date, "01"), "%YM%m%d"))` to recode the current `date` column into a date format that R can recognize. 
-    - Use `filter()` to keep only observations from January 1, 2003 to December 1, 2020. 
+    - Use `filter()` to keep only observations from January 1, 2003 to December 1, 2020, inclusive. 
     - Use `mutate()` to take the natural log of each price series. Name these columns `lnpalm`, `lnsoy`, and `lnrapeseed`, respectively.
   - Use `saveRDS()` to save your `cmo` object as an RDS object. You will use this file in Assignment 2.
   - Use `xts()` to create a new time series object called `vegoils`. This object should only contain `lnpalm`, `lnsoy`, and `lnrapeseed`.
@@ -55,7 +56,7 @@ cmo <- cmo %>%
 
 # saveRDS(cmo, here("data", "vegoils.RDS"))
 
-vegoils <- xts(cmo[,5:7], order.by = cmo$date)
+vegoils <- xts(cmo[,c("lnpalm", "lnsoy", "lnrapeseed")], order.by = cmo$date)
 ```
 
   - The first 5 rows of your `vegoils` dataframe should match the output below.
@@ -71,36 +72,38 @@ class(vegoils)
   a) Perform a Dickey-Fuller (DF) test (i.e., no constant, no trend, no lags) to determine whether each price series is stationary or not. Be clear and concise in explaining how you concluded whether the price series is stationary or not. *Hint: You will do 3 separate DF tests.* (2 point)
   b) In recent years, an Augmented Dickey Fuller (ADF) test has been developed to account for potential autocorrelation in the residuals. 
   
-  - Without adding any drift or trend terms, add lags to your stationary test for soybeans. In 2-3 sentences, explain the results and how you determined the number of lags to include in your model. (1 point)
-  - Following the Stationarity Testing Flow Chart posted on Canvas, proceed with Stage 1 testing by changing the specification to `type = c("drift")`. In 2-3 sentences, discuss the test results and which specification is most appropriate for soybean oil prices. (2 points)
+  - Without adding any drift or trend terms, add lags to your stationary test for soybean oil. In 2-3 sentences, explain the results and how you determined the number of lags to include in your model. (1 point)
+  - Following the Stationarity Testing Flow Chart posted on Canvas, proceed with Stage 1 testing by changing the specification to `type = c("drift")`. In 2-3 sentences, discuss the test results and which specification is most appropriate for soybean oil prices. Make sure you explain what the t-statistics $\phi_2$, $\phi_3$, and $\tau_3$ mean. You may refer to our lab discussion, this R blog [post](https://www.r-bloggers.com/2021/12/augmented-dickey-fuller-adf-test-in-r/) and the Stationarity Testing Flow Chart posted on Canvas. (2 points)
   - In 2-3 sentences, explain why it is important to use the correct ADF specification in testing for stationarity (1 point)
-  c) Perform an ADF test whether the first difference of each price series is stationary or not. Do not add a trend or drift term, but do control for autocorrelation by using 4 lags, 1 lags, and 1 lags for palm, soybean, and rapeseed oils, respectively. (1 point)
+  c) Perform an ADF test whether the first difference of each price series is stationary or not. Use the `type = c("trend")` specifciation and control for autocorrelation by using 4 lags for palm, 1 lag for soybean oil, and 1 lag for rapeseed oil. (1 point)
   d) In 1-2 sentences, explain why we took the first difference of each price series and conducted an ADF test on the first difference? (1 point)
 
 ```{r, echo = F, message = F, warning = F, results = 'hide'}
 # 4a.
 df_palm <- ur.df(vegoils$lnpalm, type = c("none"), lags = 0)
-summary(df_palm)
 df_soy <- ur.df(vegoils$lnsoy, type = c("none"), lags = 0)
-summary(df_soy)
 df_rapeseed <- ur.df(vegoils$lnrapeseed, type = c("none"), lags = 0)
+
+summary(df_soy)
+summary(df_palm)
 summary(df_rapeseed)
 
 # 4b
+Pacf(vegoils$lnsoy)
 adf_soy <- ur.df(vegoils$lnsoy, type = c("none"), lags = 2, selectlags = c("AIC"))
 summary(adf_soy)
 
-adf_soy_drift <- ur.df(vegoils$lnsoy, type = c("drift"), lags = 2, selectlags = c("AIC"))
-summary(adf_soy_drift)
+adf_soy_trend <- ur.df(vegoils$lnsoy, type = c("trend"), lags = 2, selectlags = c("AIC"))
+summary(adf_soy_trend)
 
 # 4c
-adf_palm_diff <- ur.df(diff.xts(vegoils$lnpalm, na.pad = F), type = c("none"), lags = 4)
+adf_palm_diff <- ur.df(diff.xts(vegoils$lnpalm, na.pad = F), type = c("trend"), lags = 4)
 summary(adf_palm_diff)
 
-adf_soy_diff <- ur.df(diff.xts(vegoils$lnsoy, na.pad = F), type = c("none"), lags = 1)
+adf_soy_diff <- ur.df(diff.xts(vegoils$lnsoy, na.pad = F), type = c("trend"), lags = 1)
 summary(adf_soy_diff)
 
-adf_rapeseed_diff <- ur.df(diff.xts(vegoils$lnrapeseed, na.pad = F), type = c("none"), lags = 1)
+adf_rapeseed_diff <- ur.df(diff.xts(vegoils$lnrapeseed, na.pad = F), type = c("trend"), lags = 1)
 summary(adf_rapeseed_diff)
 ```
 
@@ -109,57 +112,88 @@ summary(adf_rapeseed_diff)
 
   a) DF tests:
   
-  - $DF_{palm}$: t-statistic is `r round(df_palm@teststat, 3)` and the critical values are `r df_palm@cval`. We fail to reject the null hypothesis of a unit root. Palm price is not stationary. 
-  - $DF_{soy}$: t-statistic is `r round(df_soy@teststat, 3)` and the critical values are `r df_soy@cval`. We fail to reject the null hypothesis of a unit root. Soybean oil price is not stationary. 
-  - $DF_{rapeseed}$: t-statistic is `r round(df_rapeseed@teststat, 3)` and the critical values are `r df_rapeseed@cval`. We fail to reject the null hypothesis of a unit root. Rapeseed price is not stationary. 
+  - $DF_{palm}$: t-statistic is `r round(df_palm@teststat, 3)` and the critical values are `r df_palm@cval`. We fail to reject the null hypothesis of a unit root . Palm price is not stationary. 
+  - $DF_{soy}$: t-statistic is `r round(df_soy@teststat, 3)` and the critical values are `r df_soy@cval`. We fail to reject the null hypothesis of a unit root at any significance level. Soybean oil price is not stationary. 
+  - $DF_{rapeseed}$: t-statistic is `r round(df_rapeseed@teststat, 3)` and the critical values are `r df_rapeseed@cval`. We fail to reject the null hypothesis of a unit root at any significance level. Rapeseed price is not stationary. 
     
     
   b) ADF tests: 
   
-  - Visual inspection of the partial autocorrelation plot suggests we include two lags. Only 1 lag is included in the final specification if we select lags based on the lowest AIC. With the specification `lags = 2, selectlags = c("AIC")`, the t-statistic is `r round(adf_soy@teststat, 4)` and the critical values are `r adf_soy@cval`. We fail to reject the null hypothesis. Soy price is not stationary, even after adding controls for autocorrelation. 
-  - By specifying `type = c("drift")` we add a intercept to the model. The $\tau_2$ t-statistic is `r round(adf_soy_drift@teststat[1], 4)` and the critical values are `r adf_soy_drift@cval[1,]`, so there is a unit root. The $\phi_1$ t-statistic is `r round(adf_soy_drift@teststat[2], 4)` and the critical values are `r adf_soy_drift@cval[2,]`. We fail to reject the joint null hypothesis, implying that there is a unit root present and there is no drift term. Based on the flow chart, we do not need to proceed with Stage 2 testing. The most appropriate specification for soybean oil data is to add lags to the model to control for autocorrelation, but drift and trend terms are not necessary. 
+  - Visual inspection of the partial autocorrelation plot suggests we include two lags. Only 1 lag is included in the final specification if we select lags based on the lowest AIC. With the specification `lags = 2, selectlags = c("AIC")`, the t-statistic is `r round(adf_soy@teststat, 3)` and the critical values are `r adf_soy@cval`. We fail to reject the null hypothesis. Soybean oil price is not stationary, even after adding controls for autocorrelation. 
+  - By specifying `type = c("trend")` we add a drift and trend term to the model. The $\phi_2$ t-statistic is `r adf_soy_trend@teststat[2]` and the critical values are `r adf_soy_trend@cval[2,]`, so we fail to reject the joint null hypothesis; there is a unit root and we can exclude the drift and trend terms. The $\phi_3$ t-statistic is `r adf_soy_trend@teststat[3]` and the critical values are `r adf_soy_trend@cval[3,]`, indicating we fail to reject the joint null hypothesis; there is a unit root but no drift term. The $\tau_3$ t-statistic is `r adf_soy_trend@teststat[1]` and the critical values are `r adf_soy_trend@cval[1,]`, so we fail to reject the null hypothesis of a unit root. According to the Stationarity Testing Flow Chart posted on Canvas, soybean oil price has a unit root without drift. 
   - It is important to use the correct specification for the ADF test because we may end up incorrectly rejecting the unit root hypothesis and conclude the data is stationary when it is not. The converse is also true. If one applies linear regression models to non-stationary data because of an incorrectly specified ADF test, one will get spurious results.
   
-  c) In the ADF test of the first difference of palm oil, soybean oil, and rapeseed oil, the test statistics are `r round(adf_soy_diff@teststat,4)`, `r round(adf_soy_diff@teststat,4)`, `r round(adf_rapeseed_diff@teststat,4)`, respectively. The critical values are `r adf_soy_diff@cval`. We reject the null hypothesis of a unit root for each of the price series. We therefore conclude that each price series is integrated of the order 1. 
+  c) In the ADF test of the first difference of palm oil, soybean oil, and rapeseed oil, the $\tau_3$ test statistics are `r round(adf_palm_diff@teststat[1],4)`, `r round(adf_soy_diff@teststat[1],4)`, `r round(adf_rapeseed_diff@teststat[1],4)`, respectively. The critical values are `r adf_soy_diff@cval`. We reject the null hypothesis of a unit root for each of the price series; drift and trend terms must be included in the model too. We therefore conclude that each price series is integrated of the order 1. 
   
-  d) As noted in the [readings](https://otexts.com/fpp2/stationarity.html), one method to make a non-stationary time series stationary is to take the first difference, as it helps stabilize the time series by reducing trend and seasonality. We conducted an ADF test on the first difference of each price series because we need the price series to be integrated of the same order before we can proceed with the test for cointegration. 
+  d) As noted in the lectures and [readings](https://otexts.com/fpp2/stationarity.html), one method to make a non-stationary time series stationary is to take the first difference, as it helps stabilize the time series by reducing trend and seasonality. We conducted an ADF test on the first difference of each price series because we need the price series to be integrated of the same order before we can proceed with the test for cointegration. 
 
 # Testing for Cointegration (3.5 points)
 
-To test whether palm oil, soybean oil, and rapeseed oil are cointegrated, we should ideally use the Johansen test for cointegration. However, because the Johansen procedure is relatively complicated, we will instead test all three price pairs for cointegration with the Engle-Granger procedure. If all three pairs are cointegrated, we will assume that the three prices are jointly cointegrated. Note that your price series should all be integrated of the same order before testing for cointegration. 
+  - Use the 2-step Engle-Granger test with no lags to determine if palm-soybean, palm-rapeseed, soybean-rapeseed are cointegrated or not. As we have done in the labs, do not add trend or drift terms to your model. Use the `englegranger()` function we have used in the lab to determine the appropriate critical values for the ADF test on residuals. Discuss your results. (1 points)
 
-- Use the 2-step Engle Granger test to determine if palm-soybean, palm-rapeseed, soybean-rapeseed are cointegrated or not. Briefly discuss your results (2.5 points) 
+  - Do the Engle-Granger test again but now add lags to your model. Specifically, add 1 lag to palm-soybean, 2 lags to soybean-rapeseed, and 2 lags to soybean-rapeseed. Discuss your results and the importance of lag length selection in conducting the Engle-Granger test. (1.5 points)
+  
+    - *Note: The lags were selected based on visual inspection of the partial autocorrelation functions and the package's `selectlags()` function.*
+
 - In a few sentences, explain why certain countries are interested in determining whether there exists a cointegrating relationship among vegetable oils, and why? (1 point)
 
 ```{r, echo = F, results = 'hide'}
-# 3a.
-palm_soy <- lm(lnpalm ~ lnsoy, vegoils) # same coefficients
+englegranger <- function(var, trend, n){
+  if (var == 2 & trend == 0){
+    print(list(crit1 = -3.9001-10.534/n-30.03/n^2,
+               crit5 = -3.3377-5.967/n-8.98/n^2,
+               crit10 = -3.0462-4.069/n-5.73/n^2))
+  } else if (var == 2 & trend == 1){
+    print(list(crit1 = -4.326-15.531/n-34.03/n^2,
+               crit5 = -3.7809-9.421/n-15.06/n^2,
+               crit10 = -3.4959-7.203/n-4.01/n^2))
+  } else if (var == 3 & trend == 0){
+    print(list(crit1 = -4.2981-13.79/n-46.37/n^2,
+               crit5 = -3.7429-8.352/n-13.41/n^2,
+               crit10 = -3.4518-6.241/n-2.19/n^2))
+  } else if (var == 3 & trend == 1){
+    print(list(crit1 = -4.6676-18.492/n-18.492/n^2,
+               crit5 = -4.1193-12.024/n-12.024/n^2,
+               crit10 = -3.8344-9.188/n-9.188/n^2))
+  } else {
+    print('Beyond the scope of FRE530')
+  }
+}
+
+palm_soy <- lm(lnpalm ~ lnsoy, vegoils)
 palm_soy_resid <- resid(palm_soy)
-adf_palm_soy <- ur.df(palm_soy_resid, type = c("none"), lags = 2, selectlags = c("AIC"))
-summary(adf_palm_soy) 
+adf_palm_soy <- ur.df(palm_soy_resid, type = c("none"), lags = 0)
+adf_palm_soy_l <- ur.df(palm_soy_resid, type = c("none"), lags = 1)
 
-palm_rapeseed <- lm(lnpalm ~ lnrapeseed, vegoils) # same coefficients
+palm_rapeseed <- lm(lnpalm ~ lnrapeseed, vegoils)
 palm_rapeseed_resid <- resid(palm_rapeseed)
-adf_palm_rapeseed <- ur.df(palm_rapeseed_resid, type = c("none"), lags = 2, selectlags = c("AIC"))
-summary(adf_palm_rapeseed) 
-
-soy_rapeseed <- lm(lnsoy ~ lnrapeseed, vegoils) # same coefficients
+adf_palm_rapeseed <- ur.df(palm_rapeseed_resid, type = c("none"), lags = 0)
+adf_palm_rapeseed_l <- ur.df(palm_rapeseed_resid, type = c("none"), lags = 2)
+ 
+soy_rapeseed <- lm(lnsoy ~ lnrapeseed, vegoils)
 soy_rapeseed_resid <- resid(soy_rapeseed)
-adf_soy_rapeseed <- ur.df(soy_rapeseed_resid, type = c("none"), lags = 2, selectlags = c("AIC"))
+adf_soy_rapeseed <- ur.df(soy_rapeseed_resid, type = c("none"), lags = 0)
+adf_soy_rapeseed_l <- ur.df(soy_rapeseed_resid, type = c("none"), lags = 2)
+
+summary(adf_palm_soy) 
+summary(adf_palm_soy_l) 
+summary(adf_palm_rapeseed) 
+summary(adf_palm_rapeseed_l)
 summary(adf_soy_rapeseed) 
+summary(adf_soy_rapeseed_l) 
 ```
 
 **\textcolor{blue}{Suggested Answers}**
 
-  - The first step of the Engle-Granger test involves estimating the cointegrating vector. The second step involves running an ADF test on the residuals. No drift or trend terms are used because residuals do not have a trend and have mean 0 by definition. Number of lags were selected based on lowest AIC. 
+  - With `var = 2, trend = 0, n = 215`, the critical values are `-3.949745`, `-3.365648`, `-3.06525`, at the 1%, 5%, and 10%, respectively. 
   
-    - Palm-Soy: The t-statistic is `r round(adf_palm_soy@teststat, 4)` and the critical values are `r adf_palm_soy@cval`. We reject the null hypothesis of a unit root, so palm oil and soybean oil are cointegrated. 
+  - Palm-Soy: When we do not control for autocorrelation, the t-statistic is `r round(adf_palm_soy@teststat, 4)`. Compared to the critical values provided, we can only reject the null hypothesis of a unit root at the 5% level. When we add 1 lag to the model to control for autocorrelation, the t-statistic is `r round(adf_palm_soy_l@teststat, 4)`, so we reject the null hypothesis of a unit root at the 1% level. We have evidence that palm and soy are cointegrated. 
     
-    - Palm-Rapeseed: The t-statistic is `r round(adf_palm_rapeseed@teststat, 4)` and the critical values are `r adf_palm_rapeseed@cval`. We reject the null hypothesis of a unit root, so palm oil and rapeseed oil are cointegrated.  
+  - Palm-Rapeseed: When we do not control for autocorrelation, the t-statistic is `r round(adf_palm_rapeseed@teststat, 4)`. Compared to the critical values provided, we can only reject the null hypothesis at the 10% level. When we add 2 lags to the model to control for autocorrelation, the t-statistic is `r round(adf_palm_rapeseed_l@teststat, 4)`, so we reject the null hypothesis of a unit root at the 5% level. We have weak evidence that palm and rapeseed are cointegrated. 
     
-    - Soy-Rapeseed: The t-statistic is `r round(adf_soy_rapeseed@teststat, 4)` and the critical values are `r adf_soy_rapeseed@cval`. We reject the null hypothesis of a unit root, so soybean oil and rapeseed oil are cointegrated.    
-    
-    - Because each of the three pair of prices are cointegrated, we assume that the three prices are jointly cointegrated. 
+  - Soy-Rapeseed: When we do not control for autocorrelation, the t-statistic is `r round(adf_soy_rapeseed@teststat, 4)`. Compared to the critical values provided, we can only reject the null hypothesis at the 5% level. When we add 2 lags to the model to control for autocorrelation, the t-statistic is `r round(adf_soy_rapeseed_l@teststat, 4)`, we fail to reject the null hypothesis of a unit root at any significance level. We have conflicting evidence that soy and rapeseed are cointegrated. 
+  
+  - Based from this exercise, we observe that conclusions about cointegration are sensitive to the selection of the number of lags to include in the test. For example, soy and rapeseed appear to the cointegrated at the 5% level when no lags were included, but does not appear to be cointegrated when lags were included. 
     
   - Some countries such as Indonesia and Malaysia are big producers of palm oil. For example, 4.5% of Indonesia's GDP comes from palm oil ([UNDP](https://www.greencommodities.org/content/gcp/en/home/resources/at-a-glance-country-guides/indonesia-at-a-glance.html#:~:text=Indonesia%20is%20the%20world's%20largest,employment%20to%203%20million%20people.)). If there is a shock to palm oil prices, Indonesia's welfare may be affected, so it it is important from a public policy perspective to investigate if the price of palm oil continues to be impacted by other vegetable oils. For example, if the Indonesian government observes more volatile soybean oil prices, they may start thinking about policies to help producers of palm oil. 
   
@@ -184,9 +218,9 @@ cmo <- cmo %>%
          lnsoy = log(as.numeric(soybean_oil)),
          lnrapeseed = log(as.numeric(rapeseed_oil)))
 
-saveRDS(cmo, here("data", "vegoils.RDS"))
+# saveRDS(cmo, here("data", "vegoils.RDS"))
 
-vegoils <- xts(cmo[,5:7], order.by = cmo$date)
+vegoils <- xts(cmo[,c("lnpalm", "lnsoy", "lnrapeseed")], order.by = cmo$date)
 ```
 
 ## Testing for Stationarity
@@ -194,53 +228,79 @@ vegoils <- xts(cmo[,5:7], order.by = cmo$date)
 ```{r, message = F, warning = F}
 # 4a.
 df_palm <- ur.df(vegoils$lnpalm, type = c("none"), lags = 0)
-summary(df_palm)
 df_soy <- ur.df(vegoils$lnsoy, type = c("none"), lags = 0)
-summary(df_soy)
 df_rapeseed <- ur.df(vegoils$lnrapeseed, type = c("none"), lags = 0)
+
+summary(df_soy)
+summary(df_palm)
 summary(df_rapeseed)
 
 # 4b
 Pacf(vegoils$lnsoy)
-
 adf_soy <- ur.df(vegoils$lnsoy, type = c("none"), lags = 2, selectlags = c("AIC"))
 summary(adf_soy)
-
-adf_soy_drift <- ur.df(vegoils$lnsoy, type = c("drift"), lags = 2, selectlags = c("AIC"))
-summary(adf_soy_drift)
 
 adf_soy_trend <- ur.df(vegoils$lnsoy, type = c("trend"), lags = 2, selectlags = c("AIC"))
 summary(adf_soy_trend)
 
 # 4c
-adf_palm_diff <- ur.df(diff.xts(vegoils$lnpalm, na.pad = F), type = c("none"), lags = 1)
+adf_palm_diff <- ur.df(diff.xts(vegoils$lnpalm, na.pad = F), type = c("trend"), lags = 4)
 summary(adf_palm_diff)
 
-adf_soy_diff <- ur.df(diff.xts(vegoils$lnsoy, na.pad = F), type = c("none"), lags = 1)
+adf_soy_diff <- ur.df(diff.xts(vegoils$lnsoy, na.pad = F), type = c("trend"), lags = 1)
 summary(adf_soy_diff)
 
-adf_rapeseed_diff <- ur.df(diff.xts(vegoils$lnrapeseed, na.pad = F), type = c("none"), lags = 1)
+adf_rapeseed_diff <- ur.df(diff.xts(vegoils$lnrapeseed, na.pad = F), type = c("trend"), lags = 1)
 summary(adf_rapeseed_diff)
 ```
 
 ## Testing for Cointegration
 
 ```{r}
-# 5a.
-palm_soy <- lm(lnpalm ~ lnsoy, vegoils) # same coefficients
+englegranger <- function(var, trend, n){
+  if (var == 2 & trend == 0){
+    print(list(crit1 = -3.9001-10.534/n-30.03/n^2,
+               crit5 = -3.3377-5.967/n-8.98/n^2,
+               crit10 = -3.0462-4.069/n-5.73/n^2))
+  } else if (var == 2 & trend == 1){
+    print(list(crit1 = -4.326-15.531/n-34.03/n^2,
+               crit5 = -3.7809-9.421/n-15.06/n^2,
+               crit10 = -3.4959-7.203/n-4.01/n^2))
+  } else if (var == 3 & trend == 0){
+    print(list(crit1 = -4.2981-13.79/n-46.37/n^2,
+               crit5 = -3.7429-8.352/n-13.41/n^2,
+               crit10 = -3.4518-6.241/n-2.19/n^2))
+  } else if (var == 3 & trend == 1){
+    print(list(crit1 = -4.6676-18.492/n-18.492/n^2,
+               crit5 = -4.1193-12.024/n-12.024/n^2,
+               crit10 = -3.8344-9.188/n-9.188/n^2))
+  } else {
+    print('Beyond the scope of FRE530')
+  }
+}
+
+palm_soy <- lm(lnpalm ~ lnsoy, vegoils)
 palm_soy_resid <- resid(palm_soy)
-adf_palm_soy <- ur.df(palm_soy_resid, type = c("none"), lags = 2, selectlags = c("AIC"))
-summary(adf_palm_soy) 
+adf_palm_soy <- ur.df(palm_soy_resid, type = c("none"), lags = 0)
+adf_palm_soy_l <- ur.df(palm_soy_resid, type = c("none"), lags = 1)
 
-palm_rapeseed <- lm(lnpalm ~ lnrapeseed, vegoils) # same coefficients
+palm_rapeseed <- lm(lnpalm ~ lnrapeseed, vegoils)
 palm_rapeseed_resid <- resid(palm_rapeseed)
-adf_palm_rapeseed <- ur.df(palm_rapeseed_resid, type = c("none"), lags = 2, selectlags = c("AIC"))
-summary(adf_palm_rapeseed) 
-
-soy_rapeseed <- lm(lnsoy ~ lnrapeseed, vegoils) # same coefficients
+adf_palm_rapeseed <- ur.df(palm_rapeseed_resid, type = c("none"), lags = 0)
+adf_palm_rapeseed_l <- ur.df(palm_rapeseed_resid, type = c("none"), lags = 2)
+ 
+soy_rapeseed <- lm(lnsoy ~ lnrapeseed, vegoils)
 soy_rapeseed_resid <- resid(soy_rapeseed)
-adf_soy_rapeseed <- ur.df(soy_rapeseed_resid, type = c("none"), lags = 2, selectlags = c("AIC"))
+adf_soy_rapeseed <- ur.df(soy_rapeseed_resid, type = c("none"), lags = 0)
+adf_soy_rapeseed_l <- ur.df(soy_rapeseed_resid, type = c("none"), lags = 2)
+
+englegranger(2, 0, 215)
+summary(adf_palm_soy) 
+summary(adf_palm_soy_l) 
+summary(adf_palm_rapeseed) 
+summary(adf_palm_rapeseed_l)
 summary(adf_soy_rapeseed) 
+summary(adf_soy_rapeseed_l) 
 ```
 
 ```{r stats, results = 'hide', echo = F}
