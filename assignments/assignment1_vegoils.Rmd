@@ -22,12 +22,9 @@ This assignment has three main objectives: (1) reinforce the time series topics 
 
 In the labs, we have been exploring the linkage between diesel prices and soybean oil. In this assignment, you will explore the linkage between 3 vegetable oils - palm oil, soybean oil, and rapeseed oil. You will submit the rendered PDF or html file that includes your codes, output, and answers. 
 
-# Data Download
+# Data Download and Cleaning (1 point)
 
-Download the World Bank Commodity Markets "Pink Sheet" Data (Monthly Prices, XLS) [here](https://www.worldbank.org/en/research/commodity-markets)
-
-# Data Cleaning (1 point)
-
+  - Download the World Bank Commodity Markets "Pink Sheet" Data (Monthly Prices, XLS) [here](https://www.worldbank.org/en/research/commodity-markets)
   - You may find the following packages useful to conduct the cleaning and analysis: `pacman::p_load(here, readxl, dplyr, janitor, xts, lubridate, urca, forecast)`. 
   - Using `read_excel()`, load the Commodity Price Data and call this object `cmo`. *Hint: You can add `skip = 4, na = ".."` to skip the first four lines and ask R to read ".." as missing. You can also use the `clean_names()` function right away to fix the variable names.*
     - If you used `clean_names()`, rename `x1` to `date`
@@ -40,7 +37,7 @@ Download the World Bank Commodity Markets "Pink Sheet" Data (Monthly Prices, XLS
   - Use `xts()` to create a new time series object called `vegoils`. This object should only contain `lnpalm`, `lnsoy`, and `lnrapeseed`.
 
 ```{r, echo = F, message = F, warning = F}
-cmo <- read_excel(here("data", "CMO-Historical-Data-Monthly.xlsx"),
+cmo <- read_excel(here("assignments", "data", "CMO-Historical-Data-Monthly.xlsx"),
                   sheet = "Monthly Prices", skip = 4, na = "..") %>%
   clean_names()
 
@@ -54,7 +51,7 @@ cmo <- cmo %>%
          lnsoy = log(as.numeric(soybean_oil)),
          lnrapeseed = log(as.numeric(rapeseed_oil)))
 
-# saveRDS(cmo, here("data", "vegoils.RDS"))
+# saveRDS(cmo, here("assignments", data", "vegoils.RDS"))
 
 vegoils <- xts(cmo[,c("lnpalm", "lnsoy", "lnrapeseed")], order.by = cmo$date)
 ```
@@ -89,7 +86,6 @@ summary(df_palm)
 summary(df_rapeseed)
 
 # 4b
-Pacf(vegoils$lnsoy)
 adf_soy <- ur.df(vegoils$lnsoy, type = c("none"), lags = 2, selectlags = c("AIC"))
 summary(adf_soy)
 
@@ -120,10 +116,10 @@ summary(adf_rapeseed_diff)
   b) ADF tests: 
   
   - Visual inspection of the partial autocorrelation plot suggests we include two lags. Only 1 lag is included in the final specification if we select lags based on the lowest AIC. With the specification `lags = 2, selectlags = c("AIC")`, the t-statistic is `r round(adf_soy@teststat, 3)` and the critical values are `r adf_soy@cval`. We fail to reject the null hypothesis. Soybean oil price is not stationary, even after adding controls for autocorrelation. 
-  - By specifying `type = c("trend")` we add a drift and trend term to the model. The $\phi_2$ t-statistic is `r adf_soy_trend@teststat[2]` and the critical values are `r adf_soy_trend@cval[2,]`, so we fail to reject the joint null hypothesis; there is a unit root and we can exclude the drift and trend terms. The $\phi_3$ t-statistic is `r adf_soy_trend@teststat[3]` and the critical values are `r adf_soy_trend@cval[3,]`, indicating we fail to reject the joint null hypothesis; there is a unit root but no drift term. The $\tau_3$ t-statistic is `r adf_soy_trend@teststat[1]` and the critical values are `r adf_soy_trend@cval[1,]`, so we fail to reject the null hypothesis of a unit root. According to the Stationarity Testing Flow Chart posted on Canvas, soybean oil price has a unit root without drift. 
+  - By specifying `type = c("trend")` we add a drift and trend term to the model. The $\phi_2$ t-statistic is `r round(adf_soy_trend@teststat[2],3)` and the critical values are `r adf_soy_trend@cval[2,]`, so we fail to reject the joint null hypothesis; there is a unit root and we can exclude the drift and trend terms. The $\phi_3$ t-statistic is `r round(adf_soy_trend@teststat[3],3)` and the critical values are `r adf_soy_trend@cval[3,]`, indicating we fail to reject the joint null hypothesis; there is a unit root but no drift term. The $\tau_3$ t-statistic is `r round(adf_soy_trend@teststat[1],3)` and the critical values are `r adf_soy_trend@cval[1,]`, so we fail to reject the null hypothesis of a unit root. According to the Stationarity Testing Flow Chart posted on Canvas, soybean oil price has a unit root without drift. 
   - It is important to use the correct specification for the ADF test because we may end up incorrectly rejecting the unit root hypothesis and conclude the data is stationary when it is not. The converse is also true. If one applies linear regression models to non-stationary data because of an incorrectly specified ADF test, one will get spurious results.
   
-  c) In the ADF test of the first difference of palm oil, soybean oil, and rapeseed oil, the $\tau_3$ test statistics are `r round(adf_palm_diff@teststat[1],4)`, `r round(adf_soy_diff@teststat[1],4)`, `r round(adf_rapeseed_diff@teststat[1],4)`, respectively. The critical values are `r adf_soy_diff@cval`. We reject the null hypothesis of a unit root for each of the price series; drift and trend terms must be included in the model too. We therefore conclude that each price series is integrated of the order 1. 
+  c) In the ADF test of the first difference of palm oil, soybean oil, and rapeseed oil, the $\tau_3$ test statistics are `r round(adf_palm_diff@teststat[1],4)`, `r round(adf_soy_diff@teststat[1],4)`, `r round(adf_rapeseed_diff@teststat[1],4)`, respectively. The critical values are `r adf_soy_diff@cval[1,]`. We reject the null hypothesis of a unit root for each of the price series; drift and trend terms must be included in the model too. We therefore conclude that each price series is integrated of the order 1. 
   
   d) As noted in the lectures and [readings](https://otexts.com/fpp2/stationarity.html), one method to make a non-stationary time series stationary is to take the first difference, as it helps stabilize the time series by reducing trend and seasonality. We conducted an ADF test on the first difference of each price series because we need the price series to be integrated of the same order before we can proceed with the test for cointegration. 
 
@@ -133,8 +129,6 @@ summary(adf_rapeseed_diff)
 
   - Do the Engle-Granger test again but now add lags to your model. Specifically, add 1 lag to palm-soybean, 2 lags to soybean-rapeseed, and 2 lags to soybean-rapeseed. Discuss your results and the importance of lag length selection in conducting the Engle-Granger test. (1.5 points)
   
-    - *Note: The lags were selected based on visual inspection of the partial autocorrelation functions and the package's `selectlags()` function.*
-
 - In a few sentences, explain why certain countries are interested in determining whether there exists a cointegrating relationship among vegetable oils, and why? (1 point)
 
 ```{r, echo = F, results = 'hide'}
@@ -226,7 +220,7 @@ vegoils <- xts(cmo[,c("lnpalm", "lnsoy", "lnrapeseed")], order.by = cmo$date)
 ## Testing for Stationarity
 
 ```{r, message = F, warning = F}
-# 4a.
+# a.
 df_palm <- ur.df(vegoils$lnpalm, type = c("none"), lags = 0)
 df_soy <- ur.df(vegoils$lnsoy, type = c("none"), lags = 0)
 df_rapeseed <- ur.df(vegoils$lnrapeseed, type = c("none"), lags = 0)
@@ -235,7 +229,7 @@ summary(df_soy)
 summary(df_palm)
 summary(df_rapeseed)
 
-# 4b
+# b
 Pacf(vegoils$lnsoy)
 adf_soy <- ur.df(vegoils$lnsoy, type = c("none"), lags = 2, selectlags = c("AIC"))
 summary(adf_soy)
@@ -243,7 +237,7 @@ summary(adf_soy)
 adf_soy_trend <- ur.df(vegoils$lnsoy, type = c("trend"), lags = 2, selectlags = c("AIC"))
 summary(adf_soy_trend)
 
-# 4c
+# c
 adf_palm_diff <- ur.df(diff.xts(vegoils$lnpalm, na.pad = F), type = c("trend"), lags = 4)
 summary(adf_palm_diff)
 
@@ -302,148 +296,3 @@ summary(adf_palm_rapeseed_l)
 summary(adf_soy_rapeseed) 
 summary(adf_soy_rapeseed_l) 
 ```
-
-```{r stats, results = 'hide', echo = F}
-palm <- list(
-  trend = ur.df(vegoils$lnpalm, type = c("trend"), lags = 0),
-  drift =  ur.df(vegoils$lnpalm, type = c("drift"), lags = 0),
-  none = ur.df(vegoils$lnpalm, type = c("none"), lags = 0)
-)
-
-print("Level Variable with Drift and Trend")
-cbind(t(palm$trend@teststat), palm$trend@cval)
-print("Level Variable with Drift")
-cbind(t(palm$drift@teststat), palm$drift@cval)
-print("Level Variable with None")
-cbind(t(palm$none@teststat), palm$none@cval)
-
-palm_lags <- list(
-  trend = ur.df(vegoils$lnpalm, type = c("trend"), lags = 10, selectlags = c("AIC")), 
-  drift =  ur.df(vegoils$lnpalm, type = c("drift"), lags = 10, selectlags = c("AIC")),
-  none = ur.df(vegoils$lnpalm, type = c("none"), lags = 10, selectlags = c("AIC"))
-)
-
-print("Level Variable with Drift and Trend with Lags")
-cbind(t(palm_lags$trend@teststat), palm_lags$trend@cval)
-print("Level Variable with Drift with Lags")
-cbind(t(palm_lags$drift@teststat), palm_lags$drift@cval)
-print("Level Variable with None with Lags")
-cbind(t(palm_lags$none@teststat), palm_lags$none@cval)
-
-# summary(palm_lags$trend)
-# summary(palm_lags$drift)
-# summary(palm_lags$none)
-
-soy <- list(
-  trend = ur.df(vegoils$lnsoy, type = c("trend"), lags = 0),
-  drift =  ur.df(vegoils$lnsoy, type = c("drift"), lags = 0),
-  none = ur.df(vegoils$lnsoy, type = c("none"), lags = 0)
-)
-
-print("Level Variable with Drift and Trend")
-cbind(t(soy$trend@teststat), soy$trend@cval)
-print("Level Variable with Drift")
-cbind(t(soy$drift@teststat), soy$drift@cval)
-print("Level Variable with None")
-cbind(t(soy$none@teststat), soy$none@cval)
-
-soy_lags <- list(
-  trend = ur.df(vegoils$lnsoy, type = c("trend"), lags = 10, selectlags = c("AIC")), 
-  drift =  ur.df(vegoils$lnsoy, type = c("drift"), lags = 10, selectlags = c("AIC")),
-  none = ur.df(vegoils$lnsoy, type = c("none"), lags = 10, selectlags = c("AIC"))
-)
-
-print("Level Variable with Drift and Trend with Lags")
-cbind(t(soy_lags$trend@teststat), soy_lags$trend@cval)
-print("Level Variable with Drift with Lags")
-cbind(t(soy_lags$drift@teststat), soy_lags$drift@cval)
-print("Level Variable with None with Lags")
-cbind(t(soy_lags$none@teststat), soy_lags$none@cval)
-
-# summary(soy_lags$trend)
-# summary(soy_lags$drift)
-# summary(soy_lags$none)
-
-rapeseed <- list(
-  trend = ur.df(vegoils$lnrapeseed, type = c("trend"), lags = 0),
-  drift =  ur.df(vegoils$lnrapeseed, type = c("drift"), lags = 0),
-  none = ur.df(vegoils$lnrapeseed, type = c("none"), lags = 0)
-)
-
-print("Level Variable with Drift and Trend")
-cbind(t(rapeseed$trend@teststat), rapeseed$trend@cval)
-print("Level Variable with Drift")
-cbind(t(rapeseed$drift@teststat), rapeseed$drift@cval)
-print("Level Variable with None")
-cbind(t(rapeseed$none@teststat), rapeseed$none@cval)
-
-rapeseed_lags <- list(
-  trend = ur.df(vegoils$lnrapeseed, type = c("trend"), lags = 10, selectlags = c("AIC")), 
-  drift =  ur.df(vegoils$lnrapeseed, type = c("drift"), lags = 10, selectlags = c("AIC")),
-  none = ur.df(vegoils$lnrapeseed, type = c("none"), lags = 10, selectlags = c("AIC"))
-)
-
-print("Level Variable with Drift and Trend with Lags")
-cbind(t(rapeseed_lags$trend@teststat), rapeseed_lags$trend@cval)
-print("Level Variable with Drift with Lags")
-cbind(t(rapeseed_lags$drift@teststat), rapeseed_lags$drift@cval)
-print("Level Variable with None with Lags")
-cbind(t(rapeseed_lags$none@teststat), rapeseed_lags$none@cval)
-
-# summary(rapeseed_lags$trend)
-# summary(rapeseed_lags$drift)
-# summary(rapeseed_lags$none)
-
-d_palm_lags <- list(
-  trend = ur.df(diff.xts(vegoils$lnpalm, na.pad = FALSE), type = c("trend"), lags = 10, selectlags = c("AIC")), 
-  drift =  ur.df(diff.xts(vegoils$lnpalm, na.pad = FALSE), type = c("drift"), lags = 10, selectlags = c("AIC")),
-  none = ur.df(diff.xts(vegoils$lnpalm, na.pad = FALSE), type = c("none"), lags = 10, selectlags = c("AIC"))
-)
-
-print("First Diff Variable with Drift and Trend with Lags")
-cbind(t(d_palm_lags$trend@teststat), d_palm_lags$trend@cval)
-print("First Diff Variable with Drift with Lags")
-cbind(t(d_palm_lags$drift@teststat), d_palm_lags$drift@cval)
-print("First Diff Variable with None with Lags")
-cbind(t(d_palm_lags$none@teststat), d_palm_lags$none@cval)
-
-summary(d_palm_lags$trend)
-summary(d_palm_lags$drift)
-summary(d_palm_lags$none)
-
-d_soy_lags <- list(
-  trend = ur.df(diff.xts(vegoils$lnsoy, na.pad = FALSE), type = c("trend"), lags = 10, selectlags = c("AIC")), 
-  drift =  ur.df(diff.xts(vegoils$lnsoy, na.pad = FALSE), type = c("drift"), lags = 10, selectlags = c("AIC")),
-  none = ur.df(diff.xts(vegoils$lnsoy, na.pad = FALSE), type = c("none"), lags = 10, selectlags = c("AIC"))
-)
-
-print("First Diff Variable with Drift and Trend with Lags")
-cbind(t(d_soy_lags$trend@teststat), d_soy_lags$trend@cval)
-print("First Diff Variable with Drift with Lags")
-cbind(t(d_soy_lags$drift@teststat), d_soy_lags$drift@cval)
-print("First Diff Variable with None with Lags")
-cbind(t(d_soy_lags$none@teststat), d_soy_lags$none@cval)
-
-summary(d_soy_lags$trend)
-summary(d_soy_lags$drift)
-summary(d_soy_lags$none)
-
-d_rapeseed_lags <- list(
-  trend = ur.df(diff.xts(vegoils$lnrapeseed, na.pad = FALSE), type = c("trend"), lags = 10, selectlags = c("AIC")), 
-  drift =  ur.df(diff.xts(vegoils$lnrapeseed, na.pad = FALSE), type = c("drift"), lags = 10, selectlags = c("AIC")),
-  none = ur.df(diff.xts(vegoils$lnrapeseed, na.pad = FALSE), type = c("none"), lags = 10, selectlags = c("AIC"))
-)
-
-print("First Diff Variable with Drift and Trend with Lags")
-cbind(t(d_rapeseed_lags$trend@teststat), d_rapeseed_lags$trend@cval)
-print("First Diff Variable with Drift with Lags")
-cbind(t(d_rapeseed_lags$drift@teststat), d_rapeseed_lags$drift@cval)
-print("First Diff Variable with None with Lags")
-cbind(t(d_rapeseed_lags$none@teststat), d_rapeseed_lags$none@cval)
-
-summary(d_rapeseed_lags$trend)
-summary(d_rapeseed_lags$drift)
-summary(d_rapeseed_lags$none)
-```
-  
-  
