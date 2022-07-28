@@ -1,0 +1,209 @@
+---
+title: "ECM and IRF of Vegetable Oils"
+subtitle: |
+    | FRE530 Assignment 2 (12.5 points)
+    | Due in Canvas *before* midnight (11:59pm) on March 30, 2022
+urlcolor: blue
+geometry: margin=1cm
+header-includes:
+- \usepackage{pdflscape}
+- \newcommand{\blandscape}{\begin{landscape}}
+- \newcommand{\elandscape}{\end{landscape}}
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(here, readr, dplyr, tidyr, janitor, xts, lubridate, urca, forecast, vars, modelsummary)
+```
+
+# Background
+
+This assignment has three main objectives: (1) reinforce the time series topics covered in class, (2) build your intuition about time series in economics within the FRE sector, and (3) build your R toolkit.
+
+You may find loading the following libraries helpful in completing the assignment: `pacman::p_load(here, readr, dplyr, tidyr, janitor, xts, lubridate, urca, forecast, vars, modelsummary)` 
+
+# Johansen Test (1 point)
+
+Recall that in Assignment 1, we used the Engle-Granger test to determine whether the three pairs of prices were cointegrated or not. To determine if all three price series are simultaneously cointegrated we must use the Johansen test (code is in the Appendix). To confirm the presence of cointegration, this test requires us to establish that the rank of the cointegration matrix is greater than zero (i.e., reject the rank = 0 null)
+
+  - Using `readRDS()`, read the `vegoils.RDS` data posted on Canvas. Call this object as `vegoils`.
+  - Use `xts()` to convert `lnpalm`, `lnsoy`, `lnrapeseed` into a time series object and call it `vegoils_ts`.
+  - Determine the number of lags to include in the Johansen Test. *Hint: Find the lowest AIC for all three variables simultaneously.* 
+  - Conduct a Johansen Trace Test and interpret the results. (1 point)
+
+```{r, echo = F}
+# read data
+vegoils <- readRDS(here("assignments", "data", "vegoils.RDS"))
+
+# convert to xts
+vegoils_ts <- xts(vegoils[,c("lnpalm", "lnsoy", "lnrapeseed")], order.by = vegoils$date)
+```
+
+```{r, echo = F, results = 'hide'}
+# lag length
+VARselect(vegoils_ts, lag.max = 5)$select
+
+# based on trace statistic
+summary(ca.jo(vegoils_ts, type = c("trace"), K = 3, ecdet = "none"))
+```
+  
+# Error Correction Model (5 points)
+
+With more than two variables we must use the vector error correction model (VECM) and the Johansen method of estimation. This method is beyond the scope of this class and so we will instead estimate a regular two-variable error correction model (ECM) using one pair of prices. Let’s work with the palm oil-rapeseed oil pair.
+
+  - Estimate the long run relationship for soybean oil, which is specified as $p^{palm} = \alpha + \beta_1 p^{rapeseed} + \epsilon$. 
+  - Use `resid()` to save the residuals from the long run relationship. Then create a new dataframe called `vegoils_r` that merges `vegoils` with the residuals from the equation you just estimated using the `merge.xts()` function. *Hint: You will have to convert the `vegoils` and residuals into an xts object first before doing the merge.* (1 point)
+  - Determine the number of lags to include in the error correction model for each variable. (1 point)
+  - Estimate the general ECM model and interpret your results (1 point) 
+  - Does the speed of adjustment make economic sense? You may refer to FRE501 or other sources (2 points)
+
+```{r, echo = F, results = 'hide'}
+# estimate palm oil's long run relationship
+lr_palmrapeseed <- lm(lnpalm ~ lnrapeseed, data = vegoils)
+summary(lr_palmrapeseed)
+
+# save the residuals
+resid_pr <- resid(lr_palmrapeseed)
+
+VARselect(vegoils$lnpalm, lag.max = 5)$select #5 lags
+VARselect(vegoils$lnrapeseed, lag.max = 5)$select #2 lags
+
+# convert vegoils and residuals to xts object then merge
+vegoils_ts <- xts(vegoils[,c("lnpalm", "lnrapeseed")], order.by = vegoils$date)
+resid_pr_ts <- xts(resid_pr, order.by = vegoils$date)
+vegoils_r <- merge.xts(vegoils_ts, resid_pr_ts)
+head(vegoils_r)
+
+# estimate ecm for palm oil
+ecm_pr <- lm(diff.xts(vegoils_r$lnpalm, na.pad = F) ~ 
+                    lag.xts(diff.xts(vegoils_r$lnpalm, na.pad = F)) + 
+                    lag.xts(lag.xts(diff.xts(vegoils_r$lnpalm, na.pad = F))) + 
+                    lag.xts(lag.xts(lag.xts(diff.xts(vegoils_r$lnpalm, na.pad = F)))) +
+                    lag.xts(lag.xts(lag.xts(lag.xts(diff.xts(vegoils_r$lnpalm, na.pad = F))))) + 
+                    lag.xts(lag.xts(lag.xts(lag.xts(lag.xts(diff.xts(vegoils_r$lnpalm, na.pad = F)))))) + 
+                    diff.xts(vegoils_r$lnrapeseed, na.pad = F) +                
+                    lag.xts(diff.xts(vegoils_r$lnrapeseed, na.pad = F)) + 
+                    lag.xts(resid_pr_ts, na.pad = F))
+# option 1
+ecm_pr <- lm(diff.xts(lnpalm) ~
+               lag.xts(diff.xts(lnpalm)) +
+               lag.xts(diff.xts(lnpalm), k = 2) +
+               lag.xts(diff.xts(lnpalm), k = 3) + 
+               lag.xts(diff.xts(lnpalm), k = 4) + 
+               lag.xts(diff.xts(lnpalm), k = 5) + 
+               diff.xts(lnrapeseed) +
+               lag.xts(diff.xts(lnrapeseed), k = 1) +
+               lag.xts(diff.xts(lnrapeseed), k = 2) +
+               lag.xts(resid_pr_ts), data = vegoils_r)
+    
+# option 2
+vegoils_r$Dlnpalm <- diff.xts(vegoils_r$lnpalm)
+vegoils_r$Dlnrapeseed <- diff.xts(vegoils_r$lnrapeseed)
+
+ecm2 <- lm(Dlnpalm ~ 
+             lag.xts(Dlnpalm) +
+             lag.xts(Dlnpalm, k = 2) +
+             lag.xts(Dlnpalm, k = 3) + 
+             lag.xts(Dlnpalm, k = 4) + 
+             lag.xts(Dlnpalm, k = 5) + 
+             Dlnrapeseed +
+             lag.xts(Dlnrapeseed) +
+             lag.xts(resid_pr_ts), data = vegoils_r)
+
+summary(ecm_pr)
+```
+
+# Data download and data cleaning (1.5 points)
+
+We now analyze the dynamic relationship between these three vegetable oil prices using VAR and IRF. To run a VAR model, the price series must be stationary, and we must use levels instead of first differences. From the first assignment, we showed that each of the price series is not stationary. One way to address this issue is to deflate prices by an index. 
+    
+  - Download the FAO price index for vegetable oils (CSV) [here](https://www.fao.org/economic/est/est-commodities/oilcrops/price-indices-for-oilcrops-and-derived-products/en/)
+  - Using `read_excel()`, load the FAO price index data and call it `fao`. *Hint: You can add `skip = 2` to skip the first two lines. You can also use the `clean_names()` function right away to fix the variable names.*
+    - If you used `clean_names()`, rename `x1` to `year`, `x2` to `month`, and `oils` to `oil_ppi`
+    - You will notice that the year only appears for January of that year. You can use `fill(year)` for R to fill missing values based on the previous entry. Read [here](https://tidyr.tidyverse.org/reference/fill.html) for info.
+    - Using `mutate()` and `as.Date()`, format the date into a format that R recognizes.
+    - Use `filter()` to keep only observations from January 1, 2003 to December 1, 2020. 
+  - Merge `vegoils` and `fao` the two dataframes together by the `date` column. Call this dataframe as `vegoils_fao`.
+    - Using `mutate()`, deflate the commodity prices (`palm_oil`, `soybean_oil`, `rapeseed_oil`) by `oil_ppi` and call these columns `palmr`, `soyr`, and `rapeseedr`, respectively.
+    - Using `mutate()` take the natural log of each deflated price series. Call these columns `lnpalmr`, `lnsoyr`, and `lnrapeseedr`, respectively.
+    - Using `select(-)`, remove the `palm_oil`, `soybean_oil`, and `rapeseed_oil` columns.
+  
+  - Using `xts()`, convert the dataframe into an xts object. Call this new object `vegoils_real`.
+    
+```{r, echo = F, message = F}
+fao <- read_csv(here("assignments", "data", "fao_price_index.csv"), skip = 2) %>%
+  clean_names()
+
+fao <- fao %>%
+  rename(year = x1, 
+         month = x2,
+         oil_ppi = oils) %>%
+  fill(year) %>%
+  mutate(date = as.Date(paste0(year, "-", month, "-01"), format("%Y-%B-%d"))) %>%
+  filter(date >= "2003-01-01" & date <= "2020-12-01") %>%
+  dplyr::select(date, oil_ppi)
+
+vegoils_fao <- merge(vegoils, fao, by = c("date"))
+
+vegoils_fao <- vegoils_fao %>%
+  mutate(palmr = as.numeric(palm_oil) / oil_ppi * 100,
+         soyr = as.numeric(soybean_oil) / oil_ppi * 100,
+         rapeseedr = as.numeric(rapeseed_oil) / oil_ppi * 100,
+         lnpalmr = log(palmr),
+         lnsoyr = log(soyr),
+         lnrapeseedr = log(rapeseedr)) %>%
+  dplyr::select(-palm_oil, -soybean_oil, -rapeseed_oil)
+
+vegoils_real <- xts(vegoils_fao[,c("lnpalmr", "lnsoyr", "lnrapeseedr")], order.by = vegoils_fao$date)
+```
+
+  - The first 5 rows of your `vegoils_real` dataframe should match the output below.
+  
+```{r, echo = F}
+class(vegoils_real)
+head(vegoils_real, 5)
+```
+
+# VAR and Impulse Response Functions (5 points)
+
+  - Perform a test to confirm that the natural log deflated prices of each commodity is stationary. Follow the steps in the Stationary testing flowchart. Make sure you control for autocorrelation and test for the optimal lag length (for all 3 variables simultaneously) to use (0.5 point)
+  - Estimate a basic VAR model. Make sure you include the optimal number of lags. (0.5 point)
+  - Perform at least 2 diagnostic tests of your VAR model (0.5 point)
+  - Perform impulse responses functions and plot palm-soybean, palm-rapeseed, and palm-palm IRF plots nicely (0.5 point)
+  - Explain the IRF plots for palm-soybean, palm-rapeseed, and palm-palm, first while focusing only on the IRF schedules (i.e., ignoring the confidence intervals) and then accounting for the confidence intervals. (3 points) 
+  
+```{r, echo = F, results = 'hide'}
+# ADF test
+VARselect(vegoils_real$lnpalmr, lag.max = 5)$select
+VARselect(vegoils_real$lnsoyr, lag.max = 5)$select
+VARselect(vegoils_real$lnrapeseedr, lag.max = 5)$select
+
+adf_palm <- ur.df(vegoils_real$lnpalmr, type = c("trend"), lags = 5)
+adf_soy <- ur.df(vegoils_real$lnsoyr, type = c("trend"), lags = 2)
+adf_rapeseed <- ur.df(vegoils_real$lnrapeseedr, type = c("trend"), lags = 2)
+
+# VAR lag selection
+VARselect(vegoils_real, type = c("none"))$select
+
+# VAR model
+model1 <- VAR(vegoils_real, p = 3, type = c("const"))
+coef(model1)
+
+# VAR tests
+autocorrelation <- serial.test(model1) # Portmanteau Test 
+normality <- normality.test(model1) #JB test
+
+# IRF
+irf_ss <- irf(model1, impulse = c("lnsoyr"), response = c("lnsoyr"), n.ahead = 10, boot = TRUE, runs = 100, ci = 0.95)
+irf_sr <- irf(model1, impulse = c("lnrapeseedr"), response = c("lnsoyr"), n.ahead = 10, boot = TRUE, runs = 100, ci = 0.95)
+irf_sp <- irf(model1, impulse = c("lnpalmr"), response = c("lnsoyr"), n.ahead = 10, boot = TRUE, runs = 100, ci = 0.95)
+
+irf_rs <- irf(model1, impulse = c("lnsoyr"), response = c("lnrapeseedr"), n.ahead = 10, boot = TRUE, runs = 100, ci = 0.95)
+irf_rr <- irf(model1, impulse = c("lnrapeseedr"), response = c("lnrapeseedr"), n.ahead = 10, boot = TRUE, runs = 100, ci = 0.95)
+irf_pr <- irf(model1, impulse = c("lnpalmr"), response = c("lnrapeseedr"), n.ahead = 10, boot = TRUE, runs = 100, ci = 0.95)
+
+irf_ps <- irf(model1, impulse = c("lnsoyr"), response = c("lnpalmr"), n.ahead = 10, boot = TRUE, runs = 100, ci = 0.95)
+irf_pr <- irf(model1, impulse = c("lnrapeseedr"), response = c("lnpalmr"), n.ahead = 10, boot = TRUE, runs = 100, ci = 0.95)
+irf_pp <- irf(model1, impulse = c("lnpalmr"), response = c("lnpalmr"), n.ahead = 10, boot = TRUE, runs = 100, ci = 0.95)
+```
